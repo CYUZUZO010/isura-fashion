@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: isura-backend}
+spec:
+  replicas: 3
+  selector: {matchLabels: {app: isura-backend}}
+  template:
+    metadata: {labels: {app: isura-backend}}
+    spec:
+      containers:
+      - name: backend
+        image: isura-fashion/backend:latest
+        ports: [{containerPort: 8081}]
+        env:
+        - {name: DB_URL, value: jdbc:postgresql://isura-postgres:5432/isura_fashion}
+        - {name: DB_USER, value: isura}
+        - {name: DB_PASSWORD, value: isura_dev_password}
+        - {name: JWT_SECRET, value: change-this-in-cluster}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: isura-backend}
+spec:
+  selector: {app: isura-backend}
+  ports: [{port: 8081,targetPort: 8081}]

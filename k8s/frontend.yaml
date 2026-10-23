@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: isura-frontend}
+spec:
+  replicas: 3
+  selector: {matchLabels: {app: isura-frontend}}
+  template:
+    metadata: {labels: {app: isura-frontend}}
+    spec:
+      containers:
+      - name: frontend
+        image: isura-fashion/frontend:latest
+        ports: [{containerPort: 80}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: isura-frontend}
+spec:
+  selector: {app: isura-frontend}
+  ports: [{port: 80,targetPort: 80}]
+  type: LoadBalancer

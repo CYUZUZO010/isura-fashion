@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: isura-postgres}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: isura-postgres}}
+  template:
+    metadata: {labels: {app: isura-postgres}}
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        env:
+        - {name: POSTGRES_DB, value: isura_fashion}
+        - {name: POSTGRES_USER, value: isura}
+        - {name: POSTGRES_PASSWORD, value: isura_dev_password}
+        ports: [{containerPort: 5432}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: isura-postgres}
+spec:
+  selector: {app: isura-postgres}
+  ports: [{port: 5432,targetPort: 5432}]

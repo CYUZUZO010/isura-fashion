@@ -1,0 +1,9 @@
+package rw.isurafashion.controller;
+import rw.isurafashion.model.*; import rw.isurafashion.repository.*; import rw.isurafashion.service.OrderService; import org.springframework.web.bind.annotation.*; import java.util.*;
+@RestController @RequestMapping("/api/admin") public class AdminController {final ProductRepository products;final OrderRepository orders;final UserRepository users;final OrderService service; public AdminController(ProductRepository p,OrderRepository o,UserRepository u,OrderService s){products=p;orders=o;users=u;service=s;}
+ @GetMapping("/products") public List<Product> products(){return products.findAll();}
+ @PostMapping("/products") public Product create(@RequestBody Product p){if(products.findBySku(p.getSku()).isPresent())throw new IllegalArgumentException("SKU already exists");if(p.getStockQty()<0)throw new IllegalArgumentException("Negative stock is not allowed");return products.save(p);}
+ @PutMapping("/products/{id}") public Product update(@PathVariable Long id,@RequestBody Product input){Product p=products.findById(id).orElseThrow();if(input.getStockQty()<0)throw new IllegalArgumentException("Negative stock is not allowed");p.setName(input.getName());p.setCategory(input.getCategory());p.setDescription(input.getDescription());p.setPriceRwf(input.getPriceRwf());p.setSize(input.getSize());p.setColour(input.getColour());p.setStockQty(input.getStockQty());p.setPublished(input.isPublished());p.setImageUrl(input.getImageUrl());return products.save(p);}
+ @GetMapping("/orders") public List<Order> orders(){return orders.findAll();}
+ @PatchMapping("/orders/{id}/state") public Order state(@PathVariable Long id,@RequestBody Map<String,String>b){return service.transition(users.findByEmailIgnoreCase("admin@isurafashion.rw").orElseThrow(),id,b.get("state"),b.get("trackingNumber"));}
+}
