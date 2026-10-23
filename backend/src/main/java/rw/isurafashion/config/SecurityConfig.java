@@ -2,6 +2,7 @@ package rw.isurafashion.config;
 
 import java.io.IOException;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,128 +27,114 @@ import rw.isurafashion.security.TokenBlacklist;
 
 @Configuration
 public class SecurityConfig {
+        @Value("${app.frontend-url:http://localhost:5173}")
+        private String frontendUrl;
 
-    @Bean
-    SecurityFilterChain chain(
-            HttpSecurity http,
-            JwtService jwt,
-            TokenBlacklist blacklist
-    ) throws Exception {
+        @Bean
+        SecurityFilterChain chain(
+                        HttpSecurity http,
+                        JwtService jwt,
+                        TokenBlacklist blacklist) throws Exception {
 
-        OncePerRequestFilter filter = new OncePerRequestFilter() {
+                OncePerRequestFilter filter = new OncePerRequestFilter() {
 
-            @Override
-            protected void doFilterInternal(
-                    HttpServletRequest req,
-                    HttpServletResponse res,
-                    FilterChain chain
-            ) throws ServletException, IOException {
+                        @Override
+                        protected void doFilterInternal(
+                                        HttpServletRequest req,
+                                        HttpServletResponse res,
+                                        FilterChain chain) throws ServletException, IOException {
 
-                String h = req.getHeader("Authorization");
+                                String h = req.getHeader("Authorization");
 
-                if (h != null && h.startsWith("Bearer ")) {
+                                if (h != null && h.startsWith("Bearer ")) {
 
-                    try {
-                        String raw = h.substring(7);
+                                        try {
+                                                String raw = h.substring(7);
 
-                        if (blacklist.isRevoked(raw)) {
-                            chain.doFilter(req, res);
-                            return;
+                                                if (blacklist.isRevoked(raw)) {
+                                                        chain.doFilter(req, res);
+                                                        return;
+                                                }
+
+                                                var c = jwt.parse(raw);
+
+                                                var role = c.get("role");
+
+                                                var authorities = List.of(
+                                                                new SimpleGrantedAuthority("ROLE_" + role));
+
+                                                var auth = new UsernamePasswordAuthenticationToken(
+                                                                c.getSubject(),
+                                                                null,
+                                                                authorities);
+
+                                                req.setAttribute(
+                                                                "userId",
+                                                                c.get("id", Long.class));
+
+                                                SecurityContextHolder
+                                                                .getContext()
+                                                                .setAuthentication(auth);
+
+                                        } catch (Exception ignored) {
+                                                // Invalid JWT - request continues without authentication.
+                                        }
+                                }
+
+                                chain.doFilter(req, res);
                         }
+                };
 
-                        var c = jwt.parse(raw);
+                http
+                                .csrf(c -> c.disable())
+                                .cors(c -> c.configurationSource(cors()))
+                                .sessionManagement(s -> s.sessionCreationPolicy(
+                                                SessionCreationPolicy.STATELESS))
+                                .authorizeHttpRequests(a -> a
+                                                .requestMatchers(
+                                                                "/api/auth/**",
+                                                                "/api/products/**",
+                                                                "/actuator/health",
+                                                                "/api/health")
+                                                .permitAll()
+                                                .requestMatchers("/api/admin/**")
+                                                .hasRole("ADMIN")
+                                                .anyRequest()
+                                                .authenticated())
+                                .addFilterBefore(
+                                                filter,
+                                                UsernamePasswordAuthenticationFilter.class);
 
-                        var role = c.get("role");
+                return http.build();
+        }
 
-                        var authorities = List.of(
-                                new SimpleGrantedAuthority("ROLE_" + role)
-                        );
+        @Bean
+        CorsConfigurationSource cors() {
 
-                        var auth = new UsernamePasswordAuthenticationToken(
-                                c.getSubject(),
-                                null,
-                                authorities
-                        );
+                CorsConfiguration c = new CorsConfiguration();
 
-                        req.setAttribute(
-                                "userId",
-                                c.get("id", Long.class)
-                        );
+                c.setAllowedOrigins(
+                                List.of(
+                                                "http://localhost:5173",
+                                                "http://localhost:4173",
+                                                frontendUrl));
 
-                        SecurityContextHolder
-                                .getContext()
-                                .setAuthentication(auth);
+                c.setAllowedMethods(
+                                List.of(
+                                                "GET",
+                                                "POST",
+                                                "PUT",
+                                                "PATCH",
+                                                "DELETE",
+                                                "OPTIONS"));
 
-                    } catch (Exception ignored) {
-                        // Invalid JWT - request continues without authentication.
-                    }
-                }
+                c.setAllowedHeaders(List.of("*"));
+                c.setAllowCredentials(true);
 
-                chain.doFilter(req, res);
-            }
-        };
+                UrlBasedCorsConfigurationSource s = new UrlBasedCorsConfigurationSource();
 
-        http
-                .csrf(c -> c.disable())
-                .cors(c -> c.configurationSource(cors()))
-                .sessionManagement(s ->
-                        s.sessionCreationPolicy(
-                                SessionCreationPolicy.STATELESS
-                        )
-                )
-                .authorizeHttpRequests(a ->
-                        a
-                                .requestMatchers(
-                                        "/api/auth/**",
-                                        "/api/products/**",
-                                        "/actuator/health",
-                                        "/api/health"
-                                )
-                                .permitAll()
-                                .requestMatchers("/api/admin/**")
-                                .hasRole("ADMIN")
-                                .anyRequest()
-                                .authenticated()
-                )
-                .addFilterBefore(
-                        filter,
-                        UsernamePasswordAuthenticationFilter.class
-                );
+                s.registerCorsConfiguration("/**", c);
 
-        return http.build();
-    }
-
-    @Bean
-    CorsConfigurationSource cors() {
-
-        CorsConfiguration c = new CorsConfiguration();
-
-        c.setAllowedOrigins(
-                List.of(
-                        "http://localhost:5173",
-                        "http://localhost:4173"
-                )
-        );
-
-        c.setAllowedMethods(
-                List.of(
-                        "GET",
-                        "POST",
-                        "PUT",
-                        "PATCH",
-                        "DELETE",
-                        "OPTIONS"
-                )
-        );
-
-        c.setAllowedHeaders(List.of("*"));
-        c.setAllowCredentials(true);
-
-        UrlBasedCorsConfigurationSource s =
-                new UrlBasedCorsConfigurationSource();
-
-        s.registerCorsConfiguration("/**", c);
-
-        return s;
-    }
+                return s;
+        }
 }
